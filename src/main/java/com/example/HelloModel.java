@@ -12,6 +12,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Model layer: encapsulates application data and business logic.
@@ -23,7 +24,7 @@ public class HelloModel {
     private final ObjectMapper mapper = new ObjectMapper();
     private final ObservableList<NtfyMessageDto> messages = FXCollections.observableArrayList();
 
-    private boolean senderMe=false;
+    private final AtomicBoolean senderMe = new AtomicBoolean(false);
 
     public HelloModel() {
         Dotenv dotenv = Dotenv.load();
@@ -46,7 +47,7 @@ public class HelloModel {
 
     public void sendMessage(String text) {
 
-        senderMe=true;
+        senderMe.set(true);
 
         long now = System.currentTimeMillis() / 1000;
         NtfyMessageDto myMsg = new NtfyMessageDto("local", now, "message", "me", text);
@@ -83,10 +84,8 @@ public class HelloModel {
                         .filter(Objects::nonNull)
                         .filter(msg -> "message".equals(msg.event()))
                         .forEach(msg->{
-                            if (senderMe) {
-                                senderMe=false;
-                                return;
-                            }
+                            if (senderMe.getAndSet(false)) {
+                                return; }
                         Platform.runLater(() -> messages.add(msg));
                         }));
     }
