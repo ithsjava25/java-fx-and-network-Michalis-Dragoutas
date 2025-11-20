@@ -1,34 +1,26 @@
 package com.example;
 
-import io.github.cdimascio.dotenv.Dotenv;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import tools.jackson.databind.ObjectMapper;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * Model layer: encapsulates application data and business logic.
- */
 public class HelloModel {
 
-    private final String hostName;
-    private final HttpClient http = HttpClient.newHttpClient();
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final NtfyConnection connection;
     private final ObservableList<NtfyMessageDto> messages = FXCollections.observableArrayList();
-
     private final AtomicBoolean senderMe = new AtomicBoolean(false);
 
+    // Constructor for real connection
     public HelloModel() {
-        Dotenv dotenv = Dotenv.load();
-        hostName = Objects.requireNonNull(dotenv.get("HOST_NAME"));
+        this.connection = new NtfyConnectionImpl();
+        receiveMessage();
+    }
+
+    // Constructor for test (inject spy)
+    public HelloModel(NtfyConnection connection) {
+        this.connection = connection;
         receiveMessage();
     }
 
@@ -36,58 +28,23 @@ public class HelloModel {
         return messages;
     }
 
-    /**
-     * Returns a greeting based on the current Java and JavaFX versions.
-     */
-    public String getGreeting() {
-        String javaVersion = System.getProperty("java.version");
-        String javafxVersion = System.getProperty("javafx.version");
-        return "Hello, JavaFX " + javafxVersion + ", running on Java " + javaVersion + ".";
-    }
-
     public void sendMessage(String text) {
-
         senderMe.set(true);
 
+        // Add message locally
         long now = System.currentTimeMillis() / 1000;
-        NtfyMessageDto myMsg = new NtfyMessageDto("local", now, "message", "me", text);
+        NtfyMessageDto myMsg = new NtfyMessageDto("local-" + now, now, "message", "me", text);
 
         Platform.runLater(() -> messages.add(myMsg));
 
-        HttpRequest httpRequest= HttpRequest.newBuilder()
-                .POST(HttpRequest.BodyPublishers.ofString(text))
-                .uri(URI.create(hostName + "/mytopic"))
-                .build();
-        http.sendAsync(httpRequest, HttpResponse.BodyHandlers.discarding())
-                .exceptionally(ex -> {
-                    System.out.println("Error sending message: " + ex.getMessage());
-                    return null;
-                });
-            }
-
-    public void receiveMessage(){
-        HttpRequest httpRequest = HttpRequest.newBuilder()
-                .GET()
-                .uri(URI.create(hostName + "/mytopic/json"))
-                .build();
-
-        http.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofLines())
-                .thenAccept(response -> response.body()
-                        .map(s -> {
-                            try {
-                                return mapper.readValue(s, NtfyMessageDto.class);
-                            } catch (Exception e) {
-                                System.err.println("Failed to parse message: " + e.getMessage());
-                                return null;
-                            }
-                        })
-                        .filter(Objects::nonNull)
-                        .filter(msg -> "message".equals(msg.event()))
-                        .forEach(msg->{
-                            if (senderMe.getAndSet(false)) {
-                                return; }
-                        Platform.runLater(() -> messages.add(msg));
-                        }));
+        // Send via connection
+        connection.send(text);
     }
 
+    private void receiveMessage() {
+        connection.receive(msg -> {
+            if (senderMe.getAndSet(false)) return;  // Ignore own message
+            Platform.runLater(() -> messages.add(msg));
+        });
+    }
 }
