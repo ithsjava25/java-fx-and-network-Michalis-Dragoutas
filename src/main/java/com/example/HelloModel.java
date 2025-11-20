@@ -4,7 +4,9 @@ import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class HelloModel {
@@ -12,19 +14,16 @@ public class HelloModel {
     private final NtfyConnection connection;
     private final ObservableList<NtfyMessageDto> messages = FXCollections.observableArrayList();
 
-    // Track only my messages by unique ID
-    private final ConcurrentHashMap<String, Boolean> pendingMyMessages =
-            new ConcurrentHashMap<>();
+    // Track messages we sent (IDs)
+    private final Set<String> pending = ConcurrentHashMap.newKeySet();
 
-    // Constructor for real connection
     public HelloModel() {
         this.connection = new NtfyConnectionImpl();
         receiveMessage();
     }
 
-    // Constructor for tests
-    public HelloModel(NtfyConnection connection) {
-        this.connection = connection;
+    public HelloModel(NtfyConnection injected) {
+        this.connection = injected;
         receiveMessage();
     }
 
@@ -32,25 +31,34 @@ public class HelloModel {
         return messages;
     }
 
-    public void sendMessage(String text) {
-        String id = UUID.randomUUID().toString();
-        pendingMyMessages.put(id, Boolean.TRUE);
+    /** Async send */
+    public CompletableFuture<Boolean> sendMessage(String text) {
 
+        String localId = UUID.randomUUID().toString();
         long now = System.currentTimeMillis() / 1000;
 
-        NtfyMessageDto myMsg =
-                new NtfyMessageDto(id, now, "message", "me", text);
+        pending.add(localId);
 
-        Platform.runLater(() -> messages.add(myMsg));
+        // Add local version immediately
+        NtfyMessageDto local = new NtfyMessageDto(localId, now, "message", "me", text);
 
-        connection.sendWithId(text, id);
+        Platform.runLater(() -> messages.add(local));
+
+        // Send to server asynchronously
+        return connection.sendWithId(text, localId)
+                .thenApply(success -> {
+                    if (!success) pending.remove(localId);
+                    return success;
+                });
     }
 
     private void receiveMessage() {
+
         connection.receive(msg -> {
-            // Check if it's my message
-            if (pendingMyMessages.remove(msg.id()) != null) {
-                return; //
+
+            // Ignore echo of my own message
+            if (pending.remove(msg.id())) {
+                return;
             }
 
             Platform.runLater(() -> messages.add(msg));

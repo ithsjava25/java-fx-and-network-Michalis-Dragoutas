@@ -11,44 +11,29 @@ class HelloModelTest {
     private HelloModel model;
     private NtfyConnectionSpy spy;
 
-    static class NtfyConnectionSpy implements NtfyConnection {
-        String lastMessage;
-        String lastId;
-
-        @Override
-        public boolean sendWithId(String message, String id) {
-            this.lastMessage = message;
-            this.lastId = id;
-            return true;
-        }
-
-        @Override
-        public void receive(java.util.function.Consumer<NtfyMessageDto> handler) {}
-    }
-
     @BeforeEach
-    void setUp() {
+    void setup() {
         spy = new NtfyConnectionSpy();
         model = new HelloModel(spy);
     }
 
     @Test
-    void sendMessageAddsMessageToList() {
-        model.sendMessage("Hello Test");
+    void sendMessageAddsLocalMessage() {
 
-        ObservableList<NtfyMessageDto> messages = model.getMessages();
+        model.sendMessage("Hello World");
 
-        assertThat(messages).hasSize(1);
-        assertThat(messages.get(0).message()).isEqualTo("Hello Test");
-        assertThat(messages.get(0).topic()).isEqualTo("me");
-        assertThat(messages.get(0).id()).isNotEmpty();
+        ObservableList<NtfyMessageDto> list = model.getMessages();
+        assertThat(list).hasSize(1);
+        assertThat(list.get(0).message()).isEqualTo("Hello World");
+        assertThat(list.get(0).topic()).isEqualTo("me");
     }
 
     @Test
     void sendMessageCallsSpy() {
-        model.sendMessage("Hello");
 
-        assertThat(spy.lastMessage).isEqualTo("Hello");
+        model.sendMessage("Test123");
+
+        assertThat(spy.lastMessage).isEqualTo("Test123");
         assertThat(spy.lastId).isNotNull();
     }
 }

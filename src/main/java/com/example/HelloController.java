@@ -1,5 +1,6 @@
 package com.example;
 
+import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
@@ -53,11 +54,22 @@ public class HelloController {
     @FXML
     private void sendMessage(ActionEvent actionEvent) {
         String text = messageField.getText().trim();
-        if (!text.isEmpty()) {
-            model.sendMessage(text);
-            messageField.clear();
-        }
+        if (text.isEmpty())
+            return;
+        // Call asynchronous send
+        model.sendMessage(text).thenAccept(success -> {
+            if (!success) {
+                // Optional: show error
+                Platform.runLater(() ->
+                        System.out.println("Failed to send message")
+                );
+            }
+        });
+
+        // Clear immediately (UI action)
+        messageField.clear();
     }
+
 
     @FXML
     private void emojis() {

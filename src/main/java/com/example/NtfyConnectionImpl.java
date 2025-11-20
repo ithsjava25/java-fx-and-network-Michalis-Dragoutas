@@ -3,13 +3,13 @@ package com.example;
 import io.github.cdimascio.dotenv.Dotenv;
 import tools.jackson.databind.ObjectMapper;
 
-import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 public class NtfyConnectionImpl implements NtfyConnection {
@@ -28,32 +28,32 @@ public class NtfyConnectionImpl implements NtfyConnection {
     }
 
     @Override
-    public boolean sendWithId(String message, String id) {
-        HttpRequest httpRequest = HttpRequest.newBuilder()
+    public CompletableFuture<Boolean> sendWithId(String message, String localId) {
+
+        HttpRequest request = HttpRequest.newBuilder()
                 .POST(HttpRequest.BodyPublishers.ofString(message))
-                .header("X-Message-Id", id)
                 .uri(URI.create(hostName + "/mytopic"))
+                .header("X-Message-ID", localId)   // include ID
                 .build();
 
-        try {
-            http.send(httpRequest, HttpResponse.BodyHandlers.discarding());
-            return true;
-        } catch (IOException | InterruptedException e) {
-            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
-            System.out.println("Error sending message: " + e.getMessage());
-            return false;
-        }
+        return http.sendAsync(request, HttpResponse.BodyHandlers.discarding())
+                .thenApply(resp -> true)
+                .exceptionally(ex -> {
+                    System.out.println("Error sending message: " + ex.getMessage());
+                    return false;
+                });
     }
 
     @Override
-    public void receive(Consumer<NtfyMessageDto> messageHandler) {
-        HttpRequest httpRequest = HttpRequest.newBuilder()
+    public void receive(Consumer<NtfyMessageDto> handler) {
+
+        HttpRequest request = HttpRequest.newBuilder()
                 .GET()
                 .uri(URI.create(hostName + "/mytopic/json"))
                 .timeout(Duration.ofSeconds(30))
                 .build();
 
-        http.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofLines())
+        http.sendAsync(request, HttpResponse.BodyHandlers.ofLines())
                 .thenAccept(response -> response.body()
                         .map(line -> {
                             try {
@@ -64,7 +64,7 @@ public class NtfyConnectionImpl implements NtfyConnection {
                             }
                         })
                         .filter(msg -> msg != null && "message".equals(msg.event()))
-                        .forEach(messageHandler)
+                        .forEach(handler)
                 )
                 .exceptionally(ex -> {
                     System.err.println("Error receiving messages: " + ex.getMessage());
