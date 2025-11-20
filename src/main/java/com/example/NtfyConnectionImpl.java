@@ -29,24 +29,22 @@ public class NtfyConnectionImpl implements NtfyConnection {
 
     @Override
     public CompletableFuture<Boolean> sendWithId(String message, String localId) {
-
         HttpRequest request = HttpRequest.newBuilder()
                 .POST(HttpRequest.BodyPublishers.ofString(message))
                 .uri(URI.create(hostName + "/mytopic"))
-                .header("X-Message-ID", localId)   // include ID
+                .timeout(Duration.ofSeconds(30))
                 .build();
 
         return http.sendAsync(request, HttpResponse.BodyHandlers.discarding())
-                .thenApply(resp -> true)
+                .thenApply(resp -> resp.statusCode() >= 200 && resp.statusCode() < 300)
                 .exceptionally(ex -> {
-                    System.out.println("Error sending message: " + ex.getMessage());
+                    System.err.println("Error sending message: " + ex.getMessage());
                     return false;
                 });
     }
 
     @Override
     public void receive(Consumer<NtfyMessageDto> handler) {
-
         HttpRequest request = HttpRequest.newBuilder()
                 .GET()
                 .uri(URI.create(hostName + "/mytopic/json"))
@@ -64,8 +62,7 @@ public class NtfyConnectionImpl implements NtfyConnection {
                             }
                         })
                         .filter(msg -> msg != null && "message".equals(msg.event()))
-                        .forEach(handler)
-                )
+                        .forEach(handler))
                 .exceptionally(ex -> {
                     System.err.println("Error receiving messages: " + ex.getMessage());
                     return null;

@@ -12,7 +12,7 @@ public class HelloController {
     private final HelloModel model = new HelloModel();
 
     @FXML
-    public ListView<NtfyMessageDto> messageView;
+    private ListView<NtfyMessageDto> messageView;
 
     @FXML
     private TextField messageField;
@@ -23,6 +23,7 @@ public class HelloController {
     @FXML
     private void initialize() {
         messageView.setItems(model.getMessages());
+
         messageView.setCellFactory(list -> new ListCell<>() {
             @Override
             protected void updateItem(NtfyMessageDto msg, boolean empty) {
@@ -36,9 +37,7 @@ public class HelloController {
                 label.setWrapText(true);
                 label.setMaxWidth(180);
 
-                boolean fromMe = "me".equals(msg.topic());
-
-                if (fromMe) {
+                if ("me".equals(msg.topic())) {
                     label.setStyle("-fx-background-color: lightgreen; -fx-padding: 6; -fx-background-radius: 8;");
                     setAlignment(Pos.CENTER_RIGHT);
                 } else {
@@ -54,32 +53,21 @@ public class HelloController {
     @FXML
     private void sendMessage(ActionEvent actionEvent) {
         String text = messageField.getText().trim();
-        if (text.isEmpty())
-            return;
-        // Call asynchronous send
-        model.sendMessage(text).thenAccept(success -> {
-            if (!success) {
-                // Optional: show error
-                Platform.runLater(() ->
-                        System.out.println("Failed to send message")
-                );
-            }
-        });
+        if (text.isEmpty()) return;
 
-        // Clear immediately (UI action)
         messageField.clear();
+        model.sendMessage(text); // Uses async send in HelloModel
     }
-
 
     @FXML
     private void emojis() {
         String[] emojis = {"😀", "😂", "😍", "😎", "😭", "👍", "🎉"};
-        ContextMenu emojiMenu = new ContextMenu();
-        for (String emoji : emojis) {
-            MenuItem item = new MenuItem(emoji);
-            item.setOnAction(e -> messageField.appendText(emoji));
-            emojiMenu.getItems().add(item);
+        ContextMenu menu = new ContextMenu();
+        for (String e : emojis) {
+            MenuItem item = new MenuItem(e);
+            item.setOnAction(ev -> messageField.appendText(e));
+            menu.getItems().add(item);
         }
-        emojiMenu.show(emojiButton, Side.BOTTOM, 0, 0);
+        menu.show(emojiButton, Side.BOTTOM, 0, 0);
     }
 }

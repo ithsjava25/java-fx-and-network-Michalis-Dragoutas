@@ -4,64 +4,49 @@ import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class HelloModel {
 
     private final NtfyConnection connection;
     private final ObservableList<NtfyMessageDto> messages = FXCollections.observableArrayList();
 
-    // Track messages we sent (IDs)
-    private final Set<String> pending = ConcurrentHashMap.newKeySet();
-
+    // Constructor for real connection
     public HelloModel() {
         this.connection = new NtfyConnectionImpl();
-        receiveMessage();
+        receiveMessages();
     }
 
-    public HelloModel(NtfyConnection injected) {
-        this.connection = injected;
-        receiveMessage();
+    // Constructor for dependency injection (e.g., for tests)
+    public HelloModel(NtfyConnection connection) {
+        this.connection = connection;
+        receiveMessages();
     }
 
     public ObservableList<NtfyMessageDto> getMessages() {
         return messages;
     }
 
-    /** Async send */
-    public CompletableFuture<Boolean> sendMessage(String text) {
-
-        String localId = UUID.randomUUID().toString();
+    /** Send message asynchronously */
+    public void sendMessage(String text) {
         long now = System.currentTimeMillis() / 1000;
+        String localId = "local-" + UUID.randomUUID();
+        NtfyMessageDto myMsg = new NtfyMessageDto(localId, now, "message", "me", text);
 
-        pending.add(localId);
+        // Add message locally immediately
+        Platform.runLater(() -> messages.add(myMsg));
 
-        // Add local version immediately
-        NtfyMessageDto local = new NtfyMessageDto(localId, now, "message", "me", text);
-
-        Platform.runLater(() -> messages.add(local));
-
-        // Send to server asynchronously
-        return connection.sendWithId(text, localId)
-                .thenApply(success -> {
-                    if (!success) pending.remove(localId);
-                    return success;
-                });
+        // Send asynchronously
+        connection.sendWithId(text, localId).thenAccept(success -> {
+            if (!success) {
+                System.err.println("Failed to send message to server");
+                // Optionally update UI to indicate failure
+            }
+        });
     }
 
-    private void receiveMessage() {
-
-        connection.receive(msg -> {
-
-            // Ignore echo of my own message
-            if (pending.remove(msg.id())) {
-                return;
-            }
-
-            Platform.runLater(() -> messages.add(msg));
-        });
+    /** Start receiving messages from server */
+    private void receiveMessages() {
+        connection.receive(msg -> Platform.runLater(() -> messages.add(msg)));
     }
 }
