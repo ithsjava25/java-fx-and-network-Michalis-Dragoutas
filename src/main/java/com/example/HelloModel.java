@@ -4,13 +4,17 @@ import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class HelloModel {
 
     private final NtfyConnection connection;
     private final ObservableList<NtfyMessageDto> messages = FXCollections.observableArrayList();
-    private final AtomicBoolean senderMe = new AtomicBoolean(false);
+
+    // Track only my messages by unique ID
+    private final ConcurrentHashMap<String, Boolean> pendingMyMessages =
+            new ConcurrentHashMap<>();
 
     // Constructor for real connection
     public HelloModel() {
@@ -18,7 +22,7 @@ public class HelloModel {
         receiveMessage();
     }
 
-    // Constructor for test (inject spy)
+    // Constructor for tests
     public HelloModel(NtfyConnection connection) {
         this.connection = connection;
         receiveMessage();
@@ -29,21 +33,26 @@ public class HelloModel {
     }
 
     public void sendMessage(String text) {
-        senderMe.set(true);
+        String id = UUID.randomUUID().toString();
+        pendingMyMessages.put(id, Boolean.TRUE);
 
-        // Add message locally
         long now = System.currentTimeMillis() / 1000;
-        NtfyMessageDto myMsg = new NtfyMessageDto("local-" + now, now, "message", "me", text);
+
+        NtfyMessageDto myMsg =
+                new NtfyMessageDto(id, now, "message", "me", text);
 
         Platform.runLater(() -> messages.add(myMsg));
 
-        // Send via connection
-        connection.send(text);
+        connection.sendWithId(text, id);
     }
 
     private void receiveMessage() {
         connection.receive(msg -> {
-            if (senderMe.getAndSet(false)) return;  // Ignore own message
+            // Check if it's my message
+            if (pendingMyMessages.remove(msg.id()) != null) {
+                return; //
+            }
+
             Platform.runLater(() -> messages.add(msg));
         });
     }

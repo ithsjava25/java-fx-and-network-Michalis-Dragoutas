@@ -11,20 +11,19 @@ class HelloModelTest {
     private HelloModel model;
     private NtfyConnectionSpy spy;
 
-    // Simple spy to capture sent messages
     static class NtfyConnectionSpy implements NtfyConnection {
-        String sentMessage;
+        String lastMessage;
+        String lastId;
 
         @Override
-        public boolean send(String message) {
-            sentMessage = message;
+        public boolean sendWithId(String message, String id) {
+            this.lastMessage = message;
+            this.lastId = id;
             return true;
         }
 
         @Override
-        public void receive(java.util.function.Consumer<NtfyMessageDto> messageHandler) {
-            // No-op for testing sending
-        }
+        public void receive(java.util.function.Consumer<NtfyMessageDto> handler) {}
     }
 
     @BeforeEach
@@ -35,18 +34,21 @@ class HelloModelTest {
 
     @Test
     void sendMessageAddsMessageToList() {
-        model.sendMessage("Hello World");
+        model.sendMessage("Hello Test");
 
         ObservableList<NtfyMessageDto> messages = model.getMessages();
+
         assertThat(messages).hasSize(1);
-        assertThat(messages.get(0).message()).isEqualTo("Hello World");
+        assertThat(messages.get(0).message()).isEqualTo("Hello Test");
         assertThat(messages.get(0).topic()).isEqualTo("me");
-        assertThat(messages.get(0).id()).startsWith("local");
+        assertThat(messages.get(0).id()).isNotEmpty();
     }
 
     @Test
-    void sendMessageCallsSpySend() {
-        model.sendMessage("Test Spy");
-        assertThat(spy.sentMessage).isEqualTo("Test Spy");
+    void sendMessageCallsSpy() {
+        model.sendMessage("Hello");
+
+        assertThat(spy.lastMessage).isEqualTo("Hello");
+        assertThat(spy.lastId).isNotNull();
     }
 }
