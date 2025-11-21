@@ -10,11 +10,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class HelloModelTest {
 
-```
     private HelloModel model;
     private NtfyConnectionSpy spy;
 
-    // Async spy to capture messages
+
     static class NtfyConnectionSpy implements NtfyConnection {
 
         String sentMessage;
@@ -22,12 +21,12 @@ class HelloModelTest {
         @Override
         public CompletableFuture<Boolean> sendWithId(String message, String localId) {
             sentMessage = message;
-            return CompletableFuture.completedFuture(true); // Simulate successful send
+            return CompletableFuture.completedFuture(true);
         }
 
         @Override
         public void receive(java.util.function.Consumer<NtfyMessageDto> handler) {
-            // No-op for tests
+
         }
     }
 
@@ -52,12 +51,10 @@ class HelloModelTest {
     void sendMessageCallsSpySend() {
         model.sendMessage("Test Spy");
 
-        // Wait for async send to complete
-        CompletableFuture<Boolean> future = spy.sendWithId("Test Spy", "test-id");
-        future.join();
+
+        Thread.sleep(100);
 
         assertThat(spy.sentMessage).isEqualTo("Test Spy");
     }
-```
 
 }
