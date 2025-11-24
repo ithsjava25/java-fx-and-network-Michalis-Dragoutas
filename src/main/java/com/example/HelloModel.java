@@ -4,7 +4,11 @@ import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 public class HelloModel {
 
@@ -12,11 +16,12 @@ public class HelloModel {
     private final ObservableList<NtfyMessageDto> messages = FXCollections.observableArrayList();
 
 
+    private final List<String> pendingEchoes = Collections.synchronizedList(new ArrayList<>());
+
     public HelloModel() {
         this.connection = new NtfyConnectionImpl();
         receiveMessages();
     }
-
 
     public HelloModel(NtfyConnection connection) {
         this.connection = connection;
@@ -27,26 +32,45 @@ public class HelloModel {
         return messages;
     }
 
-    /** Send message asynchronously */
-    public void sendMessage(String text) {
+    public CompletableFuture<Void> sendMessage(String text) {
         long now = System.currentTimeMillis() / 1000;
         String localId = "local-" + UUID.randomUUID();
-        NtfyMessageDto myMsg = new NtfyMessageDto(localId, now, "message", "me", text);
 
 
-        Platform.runLater(() -> messages.add(myMsg));
+        pendingEchoes.add(text);
 
 
-        connection.sendWithId(text, localId).thenAccept(success -> {
+        return connection.sendWithId(text, localId).thenAccept(success -> {
             if (!success) {
                 System.err.println("Failed to send message to server");
 
+                pendingEchoes.remove(text);
             }
         });
     }
 
-    /** Start receiving messages from server */
     private void receiveMessages() {
-        connection.receive(msg -> Platform.runLater(() -> messages.add(msg)));
+        connection.receive(msg -> {
+            NtfyMessageDto finalMsg = msg;
+
+
+            synchronized (pendingEchoes) {
+                if (pendingEchoes.contains(msg.message())) {
+                    pendingEchoes.remove(msg.message());
+
+
+                    finalMsg = new NtfyMessageDto(
+                            msg.id(),
+                            msg.time(),
+                            msg.event(),
+                            "me",
+                            msg.message()
+                    );
+                }
+            }
+
+            NtfyMessageDto toAdd = finalMsg;
+            Platform.runLater(() -> messages.add(toAdd));
+        });
     }
 }
