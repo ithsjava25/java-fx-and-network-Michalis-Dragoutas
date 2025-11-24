@@ -42,6 +42,7 @@ public class HelloModel {
                 topic = "me";
             }
 
+
             NtfyMessageDto toAdd = new NtfyMessageDto(
                     msg.id(), msg.time(), msg.event(), topic, msg.message(), msg.title()
             );

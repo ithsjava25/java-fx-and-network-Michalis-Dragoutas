@@ -18,10 +18,9 @@ class HelloModelTest {
     private HelloModel model;
     private NtfyConnectionSpy spy;
 
-    // --- 1. Spy Implementation ---
+
     static class NtfyConnectionSpy implements NtfyConnection {
         String lastSentMessage;
-
         final String fakeClientId = "test-client-id";
         Consumer<NtfyMessageDto> capturedHandler;
 
@@ -66,7 +65,6 @@ class HelloModelTest {
 
     @Test
     void receiveOwnMessage_ShouldSetTopicToMe() throws InterruptedException {
-        // 1. Simulate incoming message that has OUR Client ID as the Title
         NtfyMessageDto incoming = new NtfyMessageDto(
                 "id1", 12345L, "message", "mytopic", "Green Bubble", spy.fakeClientId
         );
@@ -74,7 +72,7 @@ class HelloModelTest {
         spy.capturedHandler.accept(incoming);
         waitForFxEvents();
 
-        // 2. Verify Model recognized it
+
         ObservableList<NtfyMessageDto> messages = model.getMessages();
         assertThat(messages).hasSize(1);
 
@@ -84,7 +82,7 @@ class HelloModelTest {
 
     @Test
     void receiveStrangerMessage_ShouldKeepTopic() throws InterruptedException {
-        // 1. Simulate incoming message with DIFFERENT title
+
         NtfyMessageDto incoming = new NtfyMessageDto(
                 "id2", 12345L, "message", "mytopic", "Stranger Message", "other-id"
         );

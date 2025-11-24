@@ -56,7 +56,7 @@ public class HelloController {
         if (text.isEmpty()) return;
 
         messageField.clear();
-        model.sendMessage(text); // Uses async send in HelloModel
+        model.sendMessage(text);
     }
 
     @FXML
