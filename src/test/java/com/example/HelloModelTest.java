@@ -43,9 +43,12 @@ class HelloModelTest {
 
     @BeforeAll
     static void initJfx() {
-        try { Platform.startup(() -> {}); } catch (Exception e) {}
+        try {
+            Platform.startup(() -> {});
+        } catch (IllegalStateException e) {
+            // Already initialized, ignore
+        }
     }
-
     @BeforeEach
     void setUp() {
         spy = new NtfyConnectionSpy();
