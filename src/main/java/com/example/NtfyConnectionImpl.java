@@ -9,6 +9,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
@@ -17,6 +18,9 @@ public class NtfyConnectionImpl implements NtfyConnection {
     private final HttpClient http = HttpClient.newHttpClient();
     private final String hostName;
     private final ObjectMapper mapper = new ObjectMapper();
+
+
+    private final String clientId = UUID.randomUUID().toString();
 
     public NtfyConnectionImpl() {
         Dotenv dotenv = Dotenv.load();
@@ -28,14 +32,21 @@ public class NtfyConnectionImpl implements NtfyConnection {
     }
 
     @Override
-    public CompletableFuture<Boolean> sendWithId(String message, String localId) {
-        HttpRequest request = HttpRequest.newBuilder()
+    public String getClientId() {
+        return clientId;
+    }
+
+    @Override
+    public CompletableFuture<Boolean> send(String message) {
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .POST(HttpRequest.BodyPublishers.ofString(message))
                 .uri(URI.create(hostName + "/mytopic"))
-                .timeout(Duration.ofSeconds(30))
-                .build();
+                .timeout(Duration.ofSeconds(30));
 
-        return http.sendAsync(request, HttpResponse.BodyHandlers.discarding())
+
+        builder.header("Title", clientId);
+
+        return http.sendAsync(builder.build(), HttpResponse.BodyHandlers.discarding())
                 .thenApply(resp -> resp.statusCode() >= 200 && resp.statusCode() < 300)
                 .exceptionally(ex -> {
                     System.err.println("Error sending message: " + ex.getMessage());
@@ -57,7 +68,6 @@ public class NtfyConnectionImpl implements NtfyConnection {
                             try {
                                 return mapper.readValue(line, NtfyMessageDto.class);
                             } catch (Exception e) {
-                                System.err.println("Failed to parse message: " + e.getMessage());
                                 return null;
                             }
                         })

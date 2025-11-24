@@ -7,14 +7,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.Date;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record NtfyMessageDto(String id, long time, String event, String topic, String message){
-    private static final DateTimeFormatter date =
-            DateTimeFormatter.ofPattern("HH:mm");
+public record NtfyMessageDto(String id, long time, String event, String topic, String message, String title) {
+
     @Override
-    public String toString(){
+    public String toString() {
         String timeStr = new SimpleDateFormat("HH:mm").format(new Date(time * 1000));
-        return timeStr+ "  " + message ;
+        return timeStr + "  " + message;
     }
-
-
 }

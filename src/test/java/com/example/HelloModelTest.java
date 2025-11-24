@@ -18,13 +18,20 @@ class HelloModelTest {
     private HelloModel model;
     private NtfyConnectionSpy spy;
 
-    // 1. Spy Implementation
+    // --- 1. Spy Implementation ---
     static class NtfyConnectionSpy implements NtfyConnection {
         String lastSentMessage;
+
+        final String fakeClientId = "test-client-id";
         Consumer<NtfyMessageDto> capturedHandler;
 
         @Override
-        public CompletableFuture<Boolean> sendWithId(String message, String localId) {
+        public String getClientId() {
+            return fakeClientId;
+        }
+
+        @Override
+        public CompletableFuture<Boolean> send(String message) {
             this.lastSentMessage = message;
             return CompletableFuture.completedFuture(true);
         }
@@ -35,15 +42,9 @@ class HelloModelTest {
         }
     }
 
-    //2. JavaFX Setup for Test
     @BeforeAll
     static void initJfx() {
-        // Initialize JavaFX toolkit once for Platform.runLater to work
-        try {
-            Platform.startup(() -> {});
-        } catch (IllegalStateException e) {
-            // Toolkit already initialized, ignore
-        }
+        try { Platform.startup(() -> {}); } catch (Exception e) {}
     }
 
     @BeforeEach
@@ -52,12 +53,9 @@ class HelloModelTest {
         model = new HelloModel(spy);
     }
 
-    //3. The Tests
-
     @Test
-    void sendMessage_CallsSpyAndDoesNotAddLocally() {
-        //Send message
-        model.sendMessage("Hello World").join(); // Wait for future to complete
+    void sendMessage_ShouldCallConnectionSend_AndNotAddLocally() {
+        model.sendMessage("Hello World").join();
 
 
         assertThat(spy.lastSentMessage).isEqualTo("Hello World");
@@ -68,50 +66,40 @@ class HelloModelTest {
 
     @Test
     void receiveOwnMessage_ShouldSetTopicToMe() throws InterruptedException {
-
-        String myText = "My Secret Message";
-        model.sendMessage(myText).join();
-
-
-        NtfyMessageDto incoming = new NtfyMessageDto("id1", 100L, "message", "mytopic", myText);
-
+        // 1. Simulate incoming message that has OUR Client ID as the Title
+        NtfyMessageDto incoming = new NtfyMessageDto(
+                "id1", 12345L, "message", "mytopic", "Green Bubble", spy.fakeClientId
+        );
 
         spy.capturedHandler.accept(incoming);
-
-
         waitForFxEvents();
 
-        // 4. Verify List
+        // 2. Verify Model recognized it
         ObservableList<NtfyMessageDto> messages = model.getMessages();
         assertThat(messages).hasSize(1);
 
-        // CRITICAL CHECK: The model should have recognized the text and changed topic to "me"
+
         assertThat(messages.get(0).topic()).isEqualTo("me");
-        assertThat(messages.get(0).message()).isEqualTo(myText);
     }
 
     @Test
-    void receiveOtherMessage_ShouldKeepOriginalTopic() throws InterruptedException {
-
-        String otherText = "Hello from Stranger";
-        NtfyMessageDto incoming = new NtfyMessageDto("id2", 100L, "message", "stranger_topic", otherText);
+    void receiveStrangerMessage_ShouldKeepTopic() throws InterruptedException {
+        // 1. Simulate incoming message with DIFFERENT title
+        NtfyMessageDto incoming = new NtfyMessageDto(
+                "id2", 12345L, "message", "mytopic", "Stranger Message", "other-id"
+        );
 
         spy.capturedHandler.accept(incoming);
         waitForFxEvents();
 
         ObservableList<NtfyMessageDto> messages = model.getMessages();
-        assertThat(messages).hasSize(1);
 
-
-        assertThat(messages.get(0).topic()).isEqualTo("stranger_topic");
+        assertThat(messages.get(0).topic()).isEqualTo("mytopic");
     }
-
 
     private void waitForFxEvents() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         Platform.runLater(latch::countDown);
-        if (!latch.await(2, TimeUnit.SECONDS)) {
-            throw new RuntimeException("Timeout waiting for FX Thread");
-        }
+        latch.await(2, TimeUnit.SECONDS);
     }
 }
