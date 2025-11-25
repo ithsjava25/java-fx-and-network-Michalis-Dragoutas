@@ -1,0 +1,15 @@
+package com.example;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record NtfyMessageDto(String id, long time, String event, String topic, String message, String title) {
+
+    @Override
+    public String toString() {
+        String timeStr = new SimpleDateFormat("HH:mm").format(new Date(time * 1000));
+        return timeStr + "  " + message;
+    }
+}
