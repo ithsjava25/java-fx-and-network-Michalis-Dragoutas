@@ -95,6 +95,8 @@ class HelloModelTest {
 
         ObservableList<NtfyMessageDto> messages = model.getMessages();
 
+        assertThat(messages).hasSize(1);
+
         assertThat(messages.get(0).topic()).isEqualTo("mytopic");
     }
 
